@@ -38,6 +38,9 @@ flowchart LR
 | 2 | `excerpts/app/iot_providers/uplink_contract.py` | `UplinkData`: the boundary between the IoT provider and application handler |
 | 3 | `excerpts/app/tenant_routing_excerpt.py` | `get_tenant_by_gateway_eui`: case-insensitive gateway lookup and tenant selection |
 | 4 | `excerpts/app/services/telemetry_service.py` | `extract_metrics_from_sensor_data` and `insert_telemetry`: metric filtering and typed persistence |
+| 5 | `excerpts/app/services/water_tank_alert_excerpt.py` | `detect_tank_drop`: time-series comparison, policy threshold, and irrigation suppression |
+
+For a support-focused example of tracing a missing or unexpected reading through this system, see [`SUPPORT_WALKTHROUGH.md`](SUPPORT_WALKTHROUGH.md).
 
 The excerpts are taken from these production files in the private backend:
 
@@ -45,9 +48,12 @@ The excerpts are taken from these production files in the private backend:
 - `cloud/backend/app/iot_providers/base.py`
 - `cloud/backend/app/lorawan_handler.py`
 - `cloud/backend/app/services/telemetry_service.py`
+- `cloud/backend/app/services/water_leak_detector.py`
+- `cloud/backend/app/services/alert_policy.py`
+- `cloud/backend/app/tenant_models.py`
 
 ## Scope
 
 This is a curated source extract, not a runnable demo. The included code relies on the larger backend for configuration, AWS gateway and device managers, SQLAlchemy models, database sessions, payload decoding, and the rest of the uplink handler. No AWS credentials, certificates, customer records, or production environment files are included.
 
-The copied logic is preserved; whitespace was cleaned up for this portfolio copy. The original product repository and its Git history are not included.
+The selected application logic is preserved while unrelated production code is omitted; whitespace was cleaned up for this portfolio copy. The original product repository and its Git history are not included. The water alert excerpt is for farm water-tank monitoring, not fuel systems.
