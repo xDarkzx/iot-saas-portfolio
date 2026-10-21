@@ -1,40 +1,53 @@
-# AWS IoT to tenant telemetry — portfolio excerpt
+# AWS IoT LoRaWAN ingestion in a multi-tenant SaaS
 
-This repository is a small, curated code excerpt from **ManageMyFarm**, a larger private farm-management SaaS that was built as a working system and hosted on AWS with AWS IoT Core for LoRaWAN ingestion.
+> **Portfolio excerpt from ManageMyFarm.** This code comes from a larger private farm-management product that was built as a working system and hosted on AWS. This repository presents one focused backend path for review; it is not a standalone application.
 
-It highlights one end-to-end engineering concern: receiving device uplinks, identifying the farm that owns the gateway, and storing sensor metrics in that tenant's database. The production application also includes authentication, device management, alerting, dashboards, and other farm workflows; those remain in the private product repository.
+## Project context
+
+ManageMyFarm connects farm sensors to a multi-tenant SaaS platform. The deployed system uses AWS IoT Core for LoRaWAN ingestion, a FastAPI backend, and PostgreSQL with a separate database for each tenant. The wider product also includes authentication, device management, alerting, dashboards, and farm operations workflows.
+
+This excerpt focuses on how an AWS uplink becomes tenant-scoped telemetry. The full product and its deployment configuration remain private.
 
 ## Data path
 
 ```mermaid
 flowchart LR
-    S[LoRaWAN sensor] --> G[Gateway]
+    S[LoRaWAN sensor] --> G[Farm gateway]
     G --> A[AWS IoT Core for LoRaWAN]
-    A --> M[MQTT event]
-    M --> P[AWSIoTProvider]
-    P --> U[Normalized UplinkData]
-    U --> R[Gateway EUI tenant lookup]
-    R --> T[Per-tenant database]
+    A --> M[MQTT over mTLS]
+    M --> P[AWS IoT provider]
+    P --> U[Provider-neutral uplink]
+    U --> R[Resolve tenant by gateway EUI]
+    R --> T[That tenant's PostgreSQL database]
     T --> D[Typed telemetry metrics]
+    D --> X[Alerts and dashboard]
 ```
 
-## What this code demonstrates
+## Engineering details
 
-- **Provider boundary:** the AWS implementation turns AWS Wireless MQTT messages into the provider-neutral `UplinkData` contract used by the shared provider interface.
-- **Tenant isolation:** an uplink is routed by its gateway EUI to the registered tenant database. The live handler drops packets when the gateway is not registered.
-- **Telemetry modeling:** incoming sensor values are flattened, metadata fields are filtered out, and each metric is stored in a typed column for numeric, string, or boolean values.
+- **Provider boundary:** the AWS provider handles AWS Wireless MQTT events and maps device, gateway, signal, port, timestamp, and payload fields into the shared `UplinkData` contract.
+- **Tenant isolation:** the backend looks up the gateway EUI in the platform database and selects that tenant's database. The uplink handler drops packets if the gateway is not registered; it does not route packets from unknown gateways to a default tenant.
+- **Telemetry model:** sensor data is flattened into metric/value rows. Numeric, string, and boolean values use separate fields, while transport metadata is filtered out of the metric set.
+- **Operational metadata:** the uplink retains gateway and radio details such as RSSI, SNR, and FPort for downstream processing.
 
-## Excerpts
+## Code tour
 
-| File | Production source | What to look at |
+| Review order | File | What to inspect |
 |---|---|---|
-| `excerpts/app/iot_providers/aws_iot_provider.py` | `cloud/backend/app/iot_providers/aws_iot_provider.py` | AWS MQTT subscription, AWS Wireless payload normalization, and provider operations |
-| `excerpts/app/iot_providers/uplink_contract.py` | `cloud/backend/app/iot_providers/base.py` | Shared uplink data contract |
-| `excerpts/app/tenant_routing_excerpt.py` | `cloud/backend/app/lorawan_handler.py` | Gateway EUI lookup against the platform database |
-| `excerpts/app/services/telemetry_service.py` | `cloud/backend/app/services/telemetry_service.py` | Metric flattening and typed telemetry insertion |
+| 1 | `excerpts/app/iot_providers/aws_iot_provider.py` | `_connect_mqtt` and `_on_message_received`: AWS subscription and uplink normalization |
+| 2 | `excerpts/app/iot_providers/uplink_contract.py` | `UplinkData`: the boundary between the IoT provider and application handler |
+| 3 | `excerpts/app/tenant_routing_excerpt.py` | `get_tenant_by_gateway_eui`: case-insensitive gateway lookup and tenant selection |
+| 4 | `excerpts/app/services/telemetry_service.py` | `extract_metrics_from_sensor_data` and `insert_telemetry`: metric filtering and typed persistence |
 
-## Context and limits
+The excerpts are taken from these production files in the private backend:
 
-These are source excerpts, not a standalone application. They rely on the surrounding private backend for configuration, AWS manager classes, SQLAlchemy models, database sessions, and the rest of the uplink handler. They are provided to show a small part of a larger working system; they are not a runnable AWS demo.
+- `cloud/backend/app/iot_providers/aws_iot_provider.py`
+- `cloud/backend/app/iot_providers/base.py`
+- `cloud/backend/app/lorawan_handler.py`
+- `cloud/backend/app/services/telemetry_service.py`
 
-No AWS credentials, certificates, customer records, or production environment files are included. The original product repository and its deployment history are not included here.
+## Scope
+
+This is a curated source extract, not a runnable demo. The included code relies on the larger backend for configuration, AWS gateway and device managers, SQLAlchemy models, database sessions, payload decoding, and the rest of the uplink handler. No AWS credentials, certificates, customer records, or production environment files are included.
+
+The copied logic is preserved; whitespace was cleaned up for this portfolio copy. The original product repository and its Git history are not included.
